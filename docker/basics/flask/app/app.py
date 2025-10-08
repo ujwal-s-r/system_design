@@ -8,4 +8,4 @@ def hello_docker():
 
 if __name__ == '__main__':
     # Note: Using 0.0.0.0 makes the server accessible from outside the container
-    app.run(host='0.0.0.0', port=5000)
+    app.run(host='0.0.0.0', port=5000,debug=True)
