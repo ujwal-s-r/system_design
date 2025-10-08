@@ -1,0 +1,19 @@
+services:
+  web:
+    build: .
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    ports:
+      - "8001:8000"
+    volumes:
+      - ./app:/app
+    # Pass the Redis hostname to our app as an environment variable
+    environment:
+      - REDIS_HOST=redis
+    # Make sure Redis starts before our web app
+    depends_on:
+      - redis
+
+  # Our new Redis service
+  redis:
+    # Use the official Redis image from Docker Hub
+    image: "redis:7-alpine"
