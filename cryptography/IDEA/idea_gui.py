@@ -159,6 +159,41 @@ def str_to_bits(text, encoding='utf-8', errors='surrogatepass'):
     return bits.zfill(8 * ((len(bits) + 7) // 8))
 
 
+def pad_message(message):
+    """Pad message to multiple of 8 characters"""
+    padding_length = (8 - len(message) % 8) % 8
+    if padding_length == 0:
+        padding_length = 8
+    return message + chr(padding_length) * padding_length
+
+
+def unpad_message(message):
+    """Remove padding from message"""
+    padding_length = ord(message[-1])
+    return message[:-padding_length]
+
+
+def encrypt_blocks(message, key):
+    """Encrypt message of any length"""
+    encrypted_blocks = []
+    for i in range(0, len(message), 8):
+        block = message[i:i+8]
+        block_bits = str_to_bits(block)
+        encrypted = idea(block_bits, key, 'e')
+        encrypted_blocks.append(encrypted)
+    return ''.join(encrypted_blocks)
+
+
+def decrypt_blocks(encrypted_binary, key):
+    """Decrypt message of any length"""
+    decrypted_blocks = []
+    for i in range(0, len(encrypted_binary), 64):
+        block = encrypted_binary[i:i+64]
+        decrypted = idea(block, key, 'd')
+        decrypted_blocks.append(decode_binary_string(decrypted))
+    return ''.join(decrypted_blocks)
+
+
 # =============================
 #     IDEA Algorithm
 # =============================
@@ -217,17 +252,17 @@ def idea(block, key, mode):
 def encrypt_message(message):
     """Encrypt a message using IDEA"""
     try:
-        if not message or len(message) != 8:
-            return "Error: Please enter exactly 8 characters (64 bits)", ""
+        if not message:
+            return "Error: Please enter a message", ""
         
-        # Convert message to binary
-        data = str_to_bits(message)
+        # Pad message to multiple of 8 characters
+        padded_message = pad_message(message)
         
         # Generate random 128-bit key
         private_key = int2bits(random.randint(1, pow(2, 128)))
         
-        # Encrypt
-        result = idea(data, private_key, "e")
+        # Encrypt all blocks
+        result = encrypt_blocks(padded_message, private_key)
         
         return f"Encrypted (binary): {result}\n\nKey (128-bit): {private_key}", private_key
     
@@ -245,17 +280,17 @@ def decrypt_message(encrypted_binary, key):
         encrypted_binary = encrypted_binary.strip().replace("\n", "").replace(" ", "")
         key = key.strip().replace("\n", "").replace(" ", "")
         
-        if len(encrypted_binary) != 64:
-            return f"Error: Encrypted data must be exactly 64 bits (got {len(encrypted_binary)})"
+        if len(encrypted_binary) % 64 != 0:
+            return f"Error: Encrypted data must be multiple of 64 bits (got {len(encrypted_binary)})"
         
         if len(key) != 128:
             return f"Error: Key must be exactly 128 bits (got {len(key)})"
         
-        # Decrypt
-        result = idea(encrypted_binary, key, "d")
+        # Decrypt all blocks
+        result = decrypt_blocks(encrypted_binary, key)
         
-        # Decode binary to text
-        decoded = decode_binary_string(result)
+        # Remove padding
+        decoded = unpad_message(result)
         
         return f"Decrypted message: {decoded}"
     
@@ -276,13 +311,13 @@ def create_interface():
         
         with gr.Tab("Encrypt"):
             gr.Markdown("### Encrypt a Message")
-            gr.Markdown("Enter exactly **8 characters** to encrypt:")
+            gr.Markdown("Enter any message (will be automatically padded to 8-character blocks):")
             
             with gr.Row():
                 encrypt_input = gr.Textbox(
-                    label="Message (8 characters)", 
-                    placeholder="lalaland",
-                    max_lines=1
+                    label="Message (any length)", 
+                    placeholder="Hello, World!",
+                    max_lines=3
                 )
             
             encrypt_button = gr.Button("Encrypt", variant="primary")
@@ -307,12 +342,12 @@ def create_interface():
         
         with gr.Tab("Decrypt"):
             gr.Markdown("### Decrypt a Message")
-            gr.Markdown("Enter the **64-bit encrypted binary** and the **128-bit key**:")
+            gr.Markdown("Enter the **encrypted binary** (multiple of 64 bits) and the **128-bit key**:")
             
             decrypt_input = gr.Textbox(
-                label="Encrypted Data (64-bit binary)", 
+                label="Encrypted Data (binary)", 
                 placeholder="1111100001010110011001011100101000000101110010000100010001011110",
-                lines=2
+                lines=3
             )
             
             decrypt_key = gr.Textbox(
@@ -348,10 +383,10 @@ def create_interface():
             - Operations: Modular addition, multiplication, and XOR
             
             **Usage:**
-            1. **Encryption**: Enter exactly 8 characters. The system generates a random 128-bit key and encrypts your message.
+            1. **Encryption**: Enter any message (any length). The system automatically pads it to 8-character blocks and generates a random 128-bit key.
             2. **Decryption**: Use the encrypted binary output and the key from encryption to decrypt the message.
             
-            **Note:** This implementation works on 64-bit blocks. For longer messages, you would need to implement block chaining modes.
+            **Note:** Messages are automatically padded using PKCS7 padding scheme. Longer messages are processed in 64-bit blocks.
             """)
     
     return demo
